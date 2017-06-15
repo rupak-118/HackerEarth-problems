@@ -57,23 +57,34 @@ classifier.fit(X_train, y_train)
 # Model 2 : SVM Classification
 '''Feature scaling is advisable before using SVM '''
 from sklearn.svm import SVC
-classifier2 = SVC(kernel = 'rbf', probability = True, C = 10)
+classifier2 = SVC(kernel = 'linear', probability = True, C = 10)
 classifier2.fit(X_train, y_train)
 
+# Model 3 : XGBoost
+from xgboost import XGBClassifier
+classifier3 = XGBClassifier(max_depth = 6, learning_rate = 0.05,
+                            n_estimators = 501, objective = "multi:softprob", 
+                            gamma = 0, base_score = 0.5, reg_lambda = 0.5, subsample = 0.7,
+                            colsample_bytree = 0.8)
+
+classifier3.fit(X_train, y_train, eval_metric = "mlogloss")
 
 
 # Applying Grid Search to find the best model and the best parameters
 from sklearn.model_selection import GridSearchCV
-parameters = [{'C' : [1, 5, 10, 50],
-               'kernel' : ['rbf', 'linear',]}
+parameters = [{'max_depth' : [3, 5, 6, 9],
+               'learning_rate' : [0.01, 0.05, 0.1],
+               'subsample' : [0.3, 0.5, 0.7, 0.9]}
              ]
 '''{'C' : [50, 75, 100],
                'kernel' : ['poly'], 
                'degree' : [7,9]}'''
+'''{'C' : [0.05, 0.1, 0.5, 1],
+               'kernel' : ['rbf']}'''
 '''{'n_estimators' : [501, 502, 600]}'''
 '''{'C' : [0.005, 0.01, 0.02, 0.05, 0.1]}  '''
 
-grid_search = GridSearchCV(estimator = classifier2, 
+grid_search = GridSearchCV(estimator = classifier3, 
                            param_grid = parameters,
                            scoring = "neg_log_loss",
                            cv = 10, n_jobs = -1)
@@ -84,7 +95,12 @@ best_params = grid_search.best_params_
 
 
 # Predicting the Test Set results
-y_pred = classifier2.predict_proba(X_test)
+y_pred = classifier3.predict_proba(X_test)
+
+# Clipping putput probabilities to get better log loss score
+y_pred_clipped = np.clip(y_pred, 0.005, 0.995)
+
 
 # Writing the results to a csv file
-np.savetxt('results.csv', y_pred)
+np.savetxt('results.csv', y_pred, fmt = '%.6f')
+
