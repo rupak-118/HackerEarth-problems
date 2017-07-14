@@ -1,4 +1,4 @@
-# Predict the Road Sign - Here maps
+# Predict the Road Sign - Here Maps
 
 # Importing the libraries
 import numpy as np
@@ -62,9 +62,9 @@ classifier2.fit(X_train, y_train)
 
 # Model 3 : XGBoost
 from xgboost import XGBClassifier
-classifier3 = XGBClassifier(max_depth = 6, learning_rate = 0.05,
+classifier3 = XGBClassifier(max_depth = 3, learning_rate = 0.05,
                             n_estimators = 501, objective = "multi:softprob", 
-                            gamma = 0, base_score = 0.5, reg_lambda = 0.5, subsample = 0.7,
+                            gamma = 0, base_score = 0.5, reg_lambda = 10, subsample = 0.7,
                             colsample_bytree = 0.8)
 
 classifier3.fit(X_train, y_train, eval_metric = "mlogloss")
@@ -72,17 +72,8 @@ classifier3.fit(X_train, y_train, eval_metric = "mlogloss")
 
 # Applying Grid Search to find the best model and the best parameters
 from sklearn.model_selection import GridSearchCV
-parameters = [{'max_depth' : [3, 5, 6, 9],
-               'learning_rate' : [0.01, 0.05, 0.1],
-               'subsample' : [0.3, 0.5, 0.7, 0.9]}
+parameters = [{'base_score' : [0.7, 0.8]}
              ]
-'''{'C' : [50, 75, 100],
-               'kernel' : ['poly'], 
-               'degree' : [7,9]}'''
-'''{'C' : [0.05, 0.1, 0.5, 1],
-               'kernel' : ['rbf']}'''
-'''{'n_estimators' : [501, 502, 600]}'''
-'''{'C' : [0.005, 0.01, 0.02, 0.05, 0.1]}  '''
 
 grid_search = GridSearchCV(estimator = classifier3, 
                            param_grid = parameters,
@@ -91,13 +82,13 @@ grid_search = GridSearchCV(estimator = classifier3,
 grid_search = grid_search.fit(X_train, y_train)
 best_metric = grid_search.best_score_
 best_params = grid_search.best_params_
-
+grid_search.grid_scores_ # See all scores
 
 
 # Predicting the Test Set results
 y_pred = classifier3.predict_proba(X_test)
 
-# Clipping putput probabilities to get better log loss score
+# Clipping output probabilities to get better log loss score
 y_pred_clipped = np.clip(y_pred, 0.005, 0.995)
 
 
