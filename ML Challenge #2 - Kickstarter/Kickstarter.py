@@ -1,4 +1,4 @@
-# HackerEarth - Machine Learning Challenge #2 : Funding Successful Projects on Kickstarter
+### HackerEarth - Machine Learning Challenge #2 : Funding Successful Projects on Kickstarter
 
 # Importing the basic libraries
 import numpy as np
@@ -6,12 +6,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-# Importing the dataset
+## Importing the dataset
 train = pd.read_csv('train.csv')
 test = pd.read_csv('test.csv')
 
-#train = train[:100]
-#test = test[:100]
 
 ## EDA - Previewing datasets
 train.info()
@@ -60,14 +58,14 @@ train['diff_deadline_state_change(in mins)'] = np.round((train['state_changed_at
 test['diff_deadline_state_change(in mins)'] = np.round((test['state_changed_at'] - test['deadline'])/60.0).astype(int)
 
 
-# Convert time to struct_time structure for better usability
+## Convert time to struct_time structure for better usability
 import time
 time_cols = ['deadline','state_changed_at','launched_at','created_at']
 for x in time_cols:
     train[x] = train[x].apply(lambda k: time.localtime(k))
     test[x] = test[x].apply(lambda k: time.localtime(k))
 
-# Extracting and creating more time-based features 
+## Extracting and creating more time-based features 
 for t in time_cols: 
     train[t + '_year'] = train[t].apply(lambda k: k.tm_year)
     test[t + '_year'] = test[t].apply(lambda k: k.tm_year)
@@ -92,7 +90,7 @@ from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer 
 from sklearn.feature_extraction.text import CountVectorizer
 
-# creating a full list of descriptions from train and etst
+## creating a full list of descriptions from train and test
 desc_corp = pd.Series(train['desc'].tolist() + test['desc'].tolist()).astype(str)
 keyword_corp = pd.Series(train['keywords'].tolist() + test['keywords'].tolist()).astype(str)
 # Function to clean punctuation, digits, tabs etc.
@@ -104,7 +102,7 @@ def text_clean(word):
 desc_corp = desc_corp.map(text_clean)
 keyword_corp = keyword_corp.map(text_clean)
 
-# Splitting, checking for stopwords, Stemming
+## Splitting, checking for stopwords, Stemming
 stop = set(stopwords.words('english'))
 desc_corp = [[x for x in x.split() if x not in stop] for x in desc_corp]
 keyword_corp = [[x for x in x.split() if x not in stop] for x in keyword_corp]
@@ -113,13 +111,14 @@ stemmer = SnowballStemmer(language='english')
 desc_corp = [[stemmer.stem(x) for x in x] for x in desc_corp]
 keyword_corp = [[stemmer.stem(x) for x in x] for x in keyword_corp]
 
+# Removing words of 2 or lesser characters
 desc_corp = [[x for x in x if len(x) > 2] for x in desc_corp]
 keyword_corp = [[x for x in x if len(x) > 2] for x in keyword_corp]
 
 desc_corp = [' '.join(x) for x in desc_corp]
 keyword_corp = [' '.join(x) for x in keyword_corp]
 
-# Creating features from CBOW model
+## Creating features from CBOW model
 cv = CountVectorizer(max_features = 500)
 desc_features = cv.fit_transform(desc_corp) .todense()
 keyword_features = cv.fit_transform(keyword_corp) .todense()
@@ -129,7 +128,7 @@ desc_features.rename(columns= lambda x: 'desc_'+ str(x), inplace=True)
 keyword_features = pd.DataFrame(keyword_features)
 keyword_features.rename(columns= lambda x: 'keyword_'+ str(x), inplace=True)
 
-#split the text features
+# Split the text features into train and test
 desc_train = desc_features[:train.shape[0]]
 desc_test = desc_features[train.shape[0]:]
 desc_test.reset_index(drop=True,inplace=True)
@@ -139,17 +138,11 @@ keyword_test = keyword_features[train.shape[0]:]
 keyword_test.reset_index(drop=True,inplace=True)
 
 
-# Encoding categorical variables - disable_communication, country, currency
+## Encoding categorical variables - disable_communication, country, currency
 from sklearn.preprocessing import LabelEncoder
 le = LabelEncoder()
 train['disable_communication'] = le.fit_transform(list(train['disable_communication'].values))
 test['disable_communication'] = le.transform(list(test['disable_communication'].values))
-#feat = ['currency','country']
-#for x in feat:
-#    le2 = LabelEncoder()
-#    le2.fit(list(train[x].values) + list(test[x].values))
-#    train[x] = le2.transform(list(train[x].values))
-#    test[x] = le2.transform(list(test[x].values))
     
 curr_feat = pd.get_dummies(train['currency'].append(test['currency']))
 curr_feat.rename(columns = lambda x: 'curr_' + str(x), inplace = True)
@@ -163,7 +156,7 @@ country_feat_test = country_feat[train.shape[0]:]
 
 
 
-# Visual EDA
+## Visual EDA
 sns.pairplot(train.iloc[:, [6,7]])
 
 train_one = train.loc[(train['final_status'] == 1),:]
@@ -201,7 +194,7 @@ X_test = pd.concat([X_test, country_feat_test, curr_feat_test, desc_test, keywor
 y_train = train['final_status'].values
 
 
-## Feature Scaling
+### Feature Scaling - used only for SVM classifier; ignored for other classifiers
 #from sklearn.preprocessing import StandardScaler
 #sc_X = StandardScaler()
 #X_train = sc_X.fit_transform(X_train)
@@ -219,8 +212,6 @@ classifier = XGBClassifier(max_depth = 6, learning_rate = 0.01,
 
 classifier.fit(X_train, y_train, eval_metric = "error")
 feat_imp = classifier.feature_importances_
-#from sklearn.metrics import confusion_matrix
-#cm = confusion_matrix(y_train, y_pred_tr)
 
 # Model 2 : Random Forest classification
 from sklearn.ensemble import RandomForestClassifier
@@ -234,7 +225,7 @@ classifier_svm = SVC(kernel = 'rbf', C = 5, probability = False)
 classifier_svm.fit(X_train, y_train)
 
 
-# Applying Grid Search to find the best model and the best parameters
+## Applying GridSearchCV to find the best model and the best parameters
 from sklearn.model_selection import GridSearchCV
 parameters = [{'C' : [0.1, 0.5, 1, 5, 10, 20]}
              ]
@@ -251,9 +242,6 @@ grid_search.grid_scores_ # See all scores
 # Predicting the Test Set results
 y_pred = classifier.predict_proba(X_test)[:,1]
 y_pred = [1 if x > 0.4 else 0 for x in y_pred]
-
-#y_pred_tr = classifier.predict_proba(X_train)[:,1]
-#y_pred_tr = [1 if x > 0.4 else 0 for x in y_pred_tr]
 
 
 # Writing the results to a csv file

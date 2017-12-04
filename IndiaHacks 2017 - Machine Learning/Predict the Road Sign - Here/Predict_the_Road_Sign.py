@@ -1,13 +1,13 @@
-# Predict the Road Sign - Here Maps
+### Predict the Road Sign - Here Maps
 
-# Importing the libraries
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
+## Importing the libraries
+import numpy as np  #linear algebra 
+import matplotlib.pyplot as plt #basic plotting
+import pandas as pd #Dataframe operations
+import seaborn as sns #Advanced plotting operations
 
 
-# Importing the dataset
+## Reading the datasets
 train = pd.read_csv('train.csv')
 test = pd.read_csv('test.csv')
 
@@ -70,9 +70,12 @@ classifier3 = XGBClassifier(max_depth = 3, learning_rate = 0.05,
 classifier3.fit(X_train, y_train, eval_metric = "mlogloss")
 
 
-# Applying Grid Search to find the best model and the best parameters
+## Using Grid Search and cross-validation to find the best model and the best parameters
 from sklearn.model_selection import GridSearchCV
-parameters = [{'base_score' : [0.7, 0.8]}
+parameters = [{'n_estimators' : [101, 501, 780],
+               'max_depth' : [3, 6],
+               'learning_rate' : [0.05, 0.1],
+               'base_score' : [0.7, 0.8]}
              ]
 
 grid_search = GridSearchCV(estimator = classifier3, 
