@@ -14,6 +14,18 @@ test = pd.read_csv('test.csv')
 # Encode the target variable
 train['Is_Response'] = train.Is_Response.map({'happy':1,'not happy':0})
 
+
+''' Approaches to the problem are listed below '''
+
+### 1. Pre-processing of text features - cleaning, stemming etc.
+### 2. Create a word cloud from the text corpus to aid in EDA
+### 3. Word embeddings - word2vec, GLoVE, tf-idf, t-SNE
+### 4. Feature generation from CBOW and Skip-gram models
+### 5. Naive Bayes and Tree-based models
+### 6. Simple RNNs/LSTMs
+### 7. Ensembles and cross-validation
+
+
 ### EDA - Feature modification, creation, Word Clouds, distributions etc.
 train.describe(include = ['O'])
 test.describe(include = ['O'])
@@ -110,6 +122,7 @@ model.fit(X_train, y_train, cat_features, eval_set = (X_val, y_val))
 preds = model.predict(X_test)
 preds_val = model.predict(X_val)
 
+## Drawing confusion matrix to check model performance
 from sklearn.metrics import confusion_matrix
 confusion_matrix(y_val, preds_val)
 model.score(X_val, y_val)
