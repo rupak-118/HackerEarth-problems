@@ -138,11 +138,6 @@ feat_imp = model.feature_importances_
 preds = model.predict_proba(X_test)[:,1]
 
 
-# Model 2 : LightGBM
-
-
-
-
 
 ## Applying Grid Search to find the best model and the best parameters
 parameters = [{'n_estimators' : [51, 150, 301, 500],
@@ -161,10 +156,6 @@ grid_search = grid_search.fit(X, y)
 best_metric = grid_search.best_score_
 best_params = grid_search.best_params_
 grid_search.grid_scores_ # See all scores
-
-
-
-
 
 
 

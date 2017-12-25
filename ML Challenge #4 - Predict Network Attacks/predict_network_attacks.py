@@ -115,7 +115,7 @@ model = XGBClassifier(max_depth = 6, learning_rate = 0.01,
                             gamma = 0, base_score = 0.5, reg_lambda = 1, subsample = 0.6,
                             colsample_bytree = 0.8)
 
-model.fit(X, y, eval_metric = "error", n_jobs = -1)
+model.fit(X, y, eval_metric = "error")
 feat_imp = model.feature_importances_
 
 
@@ -126,7 +126,7 @@ scores = cross_val_score(model, X, y, cv = 5, scoring = 'accuracy', n_jobs = 8)
 ## Applying Grid Search to find the best model and the best parameters
 parameters = [{'n_estimators' : [51, 100, 301, 500],
                'max_depth' : [3,6,8,9],
-               'learning_rate' = [0.01, 0.1, 0.5]}
+               'learning_rate' : [0.01, 0.1, 0.5]}
              ]
 
 grid_search = GridSearchCV(estimator = model, 
