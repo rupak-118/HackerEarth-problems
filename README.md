@@ -27,3 +27,8 @@ This repo contains code for challenges/competitions hosted on HackerEarth. These
 - Word cloud for EDA
 - Different text embeddings - word2vec, tf-idf, GLoVE etc.
 
+#### VI. BrainWaves ML Challenge - Predict Annual Returns + Predict Fraudulent Transactions : http://bit.ly/2pvp6wL
+
+- Gradient boosting methods
+- Feature selection and Feature engineering (using xgbfir)
+- Stacked ensembles for regression
