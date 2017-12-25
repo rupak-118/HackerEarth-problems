@@ -85,8 +85,6 @@ for c in cols_to_encode:
 train = df.iloc[0:train.shape[0],:]
 test = df.iloc[train.shape[0]::,:-1]
 
-# Using OHE for some columns (pf_category, type, country_code etc.)
-
 
 ## Removing missing values from libor_rate using kNN
 features = ['euribor_rate', 'currency']
@@ -185,16 +183,8 @@ X = train[all_features].values
 y = train['return'].values
 X_test = test[all_features].values
 
-# Feature Scaling and normalization of only the large valued columns
-''' A simple scaling would also have sufficed '''
-from sklearn.preprocessing import StandardScaler
-sc = StandardScaler()
-X[:,6:9] = sc.fit_transform(X[:,6:9])
-X_test[:,6:9] = sc.transform(X_test[:,6:9])
-X = sc.fit_transform(X)
-X_test = sc.transform(X_test)
 
-''' Alternately, only scaling the 'sold', 'bought' and 'profit_loss' columns '''
+# Scaling the 'profit_loss' column
 X[:,7] = X[:,7]/1000000
 X_test[:,7] = X_test[:,7]/1000000
 
@@ -207,8 +197,8 @@ model.fit(X, y)
 
 fold_num = 1
 cv_scores = []
-skf = StratifiedKFold(n_splits = 5, shuffle = True, random_state = 42)
-for train_idx, val_idx in skf.split(X,y):
+kf = KFold(n_splits = 5, shuffle = True, random_state = 42)
+for train_idx, val_idx in kf.split(X,y):
     print("Fitting fold %d" %fold_num)
     model.fit(X[train_idx], y[train_idx])
     score = r2_score(y[val_idx],model.predict(X[val_idx]))
@@ -221,37 +211,16 @@ preds = model.predict(X_test)
 
 ''' SVR doesn't seem to be working well. For any possible combination, it's giving negative scores '''
 
-# Model 2 : Random Forest Regression
-from sklearn.ensemble import RandomForestRegressor
-model = RandomForestRegressor(n_estimators = 343, criterion = "mse", max_depth = 10)
-''' One of the better set of parameters : 343 trees, max_depth = 10 '''
-model.fit(X,y)
-# cross-validation
-fold_num = 1
-cv_scores = []
-skf = StratifiedKFold(n_splits = 5, shuffle = True, random_state = 102)
-for train_idx, val_idx in skf.split(X,y):
-    print("Fitting fold %d" %fold_num)
-    model.fit(X[train_idx], y[train_idx])
-    score = r2_score(y[val_idx],model.predict(X[val_idx]))
-    cv_scores.append(score)
-    print("Eval. score (R2-score) for fold {} = {}\n".format(fold_num,score))
-    fold_num += 1
-
-# Predicting on test set
-preds = model.predict(X_test)
-
-
-# Model 3 : XGB Regression
+# Model 2 : XGB Regression
 from xgboost import XGBRegressor
-model = XGBRegressor(max_depth = 8, learning_rate = 0.5, n_estimators = 343, reg_alpha = 0,
-                     reg_lambda = 5)
+model = XGBRegressor(max_depth = 12, learning_rate = 0.05, n_estimators = 501, reg_alpha = 0,
+                     reg_lambda = 10, subsample = 0.8)
 model.fit(X,y)
 # cross-validation
 fold_num = 1
 cv_scores = []
-skf = StratifiedKFold(n_splits = 5, shuffle = True, random_state = 102)
-for train_idx, val_idx in skf.split(X,y):
+kf = KFold(n_splits = 5, shuffle = True, random_state = 102)
+for train_idx, val_idx in kf.split(X,y):
     print("Fitting fold %d" %fold_num)
     model.fit(X[train_idx], y[train_idx], eval_metric = "rmse")
     score = r2_score(y[val_idx],model.predict(X[val_idx]))
@@ -260,7 +229,7 @@ for train_idx, val_idx in skf.split(X,y):
     fold_num += 1
 
 print("Mean CV score = {}; Std. dev. CV score = {}\n".format(np.mean(cv_scores), np.std(cv_scores)))
-feat_imp = pd.DataFrame(data = model.feature_importances_, index = all_features)
+feat_imp = pd.DataFrame(data = model.feature_importances_, index = top_10_features)
 
 
 ## Using xgbfir to learn more about feature interactions and create new useful features
@@ -268,20 +237,93 @@ import xgbfir
 # saving to file with proper feature names
 xgbfir.saveXgbFI(model, feature_names = all_features, OutputXlsxFile='predict_returns_FI.xlsx')
 
+# Creating new features based on XGBFI file
+train['country_desk_id'] = train['country_code']*10000 + train['desk_id']
+train['pr_loss_maxibor'] = train[['euribor_rate', 'libor_rate']].apply(max, axis = 1) * train['profit_loss']
+train['pr_loss_euribor'] = train['profit_loss'] * train['euribor_rate']
+train['pr_loss_libor'] = train['profit_loss'] * train['libor_rate']
+train['currency_euribor_pr_loss'] = train['currency'] * train['pr_loss_euribor']
+
+test['country_desk_id'] = test['country_code']*10000 + test['desk_id']
+test['pr_loss_maxibor'] = test[['euribor_rate', 'libor_rate']].apply(max, axis = 1) * test['profit_loss']
+test['pr_loss_euribor'] = test['profit_loss'] * test['euribor_rate']
+test['pr_loss_libor'] = test['profit_loss'] * test['libor_rate']
+test['currency_euribor_pr_loss'] = test['currency'] * test['pr_loss_euribor']
+
+
+## Redefining features
+reg_features = ['office_id', 'pf_category', 'country_code', 'euribor_rate', 'currency',
+                'libor_rate', 'log_bought', 'profit_loss', 'desk_id']
+date_features = ['start_month', 'start_day', 'start_weekday', 'sell_month', 'sell_day', 
+                 'sell_weekday', 'sell-start', 'sell-creation', 'creation-start']
+interaction_features = ['country_desk_id', 'pr_loss_maxibor', 'pr_loss_euribor',
+                        'pr_loss_libor', 'currency_euribor_pr_loss']
+all_features = reg_features + date_features + interaction_features
+
+top_10_features = ['log_bought', 'euribor_rate', 'desk_id', 'libor_rate', 'country_desk_id',
+                   'profit_loss', 'currency_euribor_pr_loss', 'sell-start', 
+                   'pr_loss_maxibor', 'pr_loss_euribor']
+
+X = train[top_10_features].values
+y = train['return'].values
+X_test = test[top_10_features].values
+
+# Scaling the relevant columns
+X[:,5] = X[:,5]/1000000
+X_test[:,5] = X_test[:,5]/1000000
+
+''' We re-run the XGB Regressor model now '''
+
+
+## Model 3 : LightGBM Regression
+from lightgbm import LGBMRegressor
+model = LGBMRegressor(num_leaves = 22, max_depth = 10, learning_rate = 0.1, max_bin = 45,
+                      n_estimators = 4510, subsample = 1, reg_alpha = 0, reg_lambda = 15)
+model.fit(X, y)
+# cross-validation
+fold_num = 1
+cv_scores = []
+kf = KFold(n_splits = 5, shuffle = True, random_state = 51)
+for train_idx, val_idx in kf.split(X,y):
+    print("Fitting fold %d" %fold_num)
+    model.fit(X[train_idx], y[train_idx], eval_metric = "rmse")
+    score = r2_score(y[val_idx],model.predict(X[val_idx]))
+    cv_scores.append(score)
+    print("Eval. score (R2-score) for fold {} = {}\n".format(fold_num,score))
+    fold_num += 1
+
+print("Mean CV score = {}; Std. dev. CV score = {}\n".format(np.mean(cv_scores), np.std(cv_scores)))
+
 
 # Predicting on test set
 preds = model.predict(X_test)
+# Averaging predictions; preds_10 - Prediction using top 10 features, preds_all - using all features
+preds = (preds_all + preds_10)/2 
+ 
+sns.distplot(preds, hist = False)
 
-del X,y,X_test,model
+
+#del X,y,X_test,model
 
 
 ## Applying Grid Search to find the best model and the best parameters
-parameters = [{'n_estimators' : [343],
+parameters = [{'n_estimators' : [2200, 2750, 3145, 4510],
                'max_depth' : [10],
-               'learning_rate' : [0.1, 0.5],
-               'min_samples_split' : [2,4],
-               'min_samples_leaf' : [1,2,5,10]}
+               'learning_rate' : [0.1],
+               'num_leaves' : [22],
+               'max_bin' : [45],
+               'reg_alpha' : [0],
+               'reg_lambda' : [15],
+               'subsample' : [1]}
              ]
+
+#parameters = [{'n_estimators' : [650],
+#               'max_depth' : [15, 18, 20],
+#               'learning_rate' : [0.05],
+#               'reg_alpha' : [0],
+#               'reg_lambda' : [10],
+#               'subsample' : [0.8]}
+#             ]
 
 grid_search = GridSearchCV(estimator = model, 
                            param_grid = parameters,
@@ -293,15 +335,75 @@ best_params = grid_search.best_params_
 grid_search.grid_scores_ # See all scores
 
 
+## Building structure for ensemble models
+class Ensemble(object):
+    def __init__(self, n_splits, stacker, base_models):
+        self.n_splits = n_splits
+        self.stacker = stacker
+        self.base_models = base_models
+
+    def fit_predict(self, X, y, X_test):
+        X = np.array(X)
+        y = np.array(y)
+        X_test = np.array(X_test)
+
+        folds = list(KFold(n_splits=self.n_splits, shuffle=True, random_state = 102).split(X, y))
+
+        S_train = np.zeros((X.shape[0], len(self.base_models)))
+        S_test = np.zeros((X_test.shape[0], len(self.base_models)))
+        
+        for i, clf in enumerate(self.base_models):
+            S_test_i = np.zeros((X_test.shape[0], self.n_splits))
+
+            for j, (train_idx, val_idx) in enumerate(folds):
+                X_train, X_val, y_train, y_val = X[train_idx], X[val_idx], y[train_idx], y[val_idx]
+                print ("Fit %s fold %d" % (str(clf).split('(')[0], j+1))
+                clf.fit(X_train, y_train)
+                y_pred = clf.predict(X_val)               
+                S_train[val_idx, i] = y_pred
+                S_test_i[:, j] = clf.predict(X_test)
+            S_test[:, i] = S_test_i.mean(axis=1)
+
+        results = cross_val_score(self.stacker, S_train, y, cv=5, scoring='r2')
+        print("Stacker score: %.5f" % (results.mean()))
+
+        self.stacker.fit(S_train, y)
+        res = self.stacker.predict(S_test)
+        return res
 
 
+## Model and their parameters to be used for the stacked ensemble
+xgb1 = XGBRegressor(max_depth = 12, learning_rate = 0.05, n_estimators = 501, reg_alpha = 0,
+                     reg_lambda = 10, subsample = 0.8)
 
+xgb2 = XGBRegressor(max_depth = 10, learning_rate = 0.05, n_estimators = 650, reg_alpha = 0,
+                     reg_lambda = 5, subsample = 0.8)
+
+xgb3 = XGBRegressor(max_depth = 15, learning_rate = 0.05, n_estimators = 501, reg_alpha = 0,
+                     reg_lambda = 10, subsample = 0.8)
+
+lgbm1 = LGBMRegressor(num_leaves = 22, max_depth = 10, learning_rate = 0.05, max_bin = 45,
+                      n_estimators = 650, subsample = 0.8, reg_alpha = 0, reg_lambda = 5)
+
+lgbm2 = LGBMRegressor(num_leaves = 22, max_depth = 10, learning_rate = 0.1, max_bin = 45,
+                      n_estimators = 4510, subsample = 1, reg_alpha = 0, reg_lambda = 15)
+
+
+## Layer 2 of stacked ensemble
+from sklearn.linear_model import LinearRegression
+linear_model = LinearRegression(normalize = False)
+       
+stack = Ensemble(n_splits=5,
+        stacker = linear_model,
+        base_models = (xgb1, xgb2, xgb3, lgbm1, lgbm2))        
+        
+ensemble_pred = stack.fit_predict(X, y, X_test)  
 
 
 ## Submitting predictions
-subm = pd.DataFrame({'portfolio_id':test['portfolio_id'].values, 'return': preds}, 
+subm = pd.DataFrame({'portfolio_id':test['portfolio_id'].values, 'return': ensemble_pred}, 
                      columns = ['portfolio_id','return'])
-subm.to_csv('sub12.csv', index=False)
+subm.to_csv('sub25.csv', index=False)
 
 
 
